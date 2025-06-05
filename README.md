@@ -21,9 +21,11 @@ microservicio_alertas/
 │   ├── config/            # Lógica de carga de configuración (compartida)
 │   │   └── config.go
 │   ├── database/          # Conexión a BD, helpers genéricos de queries (compartido)
-│   │   └── postgres.go
+│   │   └── database.go
 │   ├── models/            # Estructuras de datos compartidas
 │   │   ├── common_alert.go  # Estructura para la tabla alertas_alertas
+│   │   └── camiones.go
+│   │   └── geocercas.go
 │   │   
 │   ├── services/          # Lógica de negocio específica para cada tipo de alerta
 │   │   ├── detencion_zona_roja/

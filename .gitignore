@@ -1,6 +1,14 @@
 .env
+.env.*
+!/.env.example
 .log
 bin/
 *.exe
 *.out
+
+/vendor/
 coverage.out 
+
+.idea/
+.vscode/
+*.DS_Store
