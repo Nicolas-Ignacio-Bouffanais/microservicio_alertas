@@ -19,9 +19,12 @@ type DBConfig struct {
 }
 
 type TableNames struct {
-	ConcentradorGPS string
-	Geocercas       string
-	Rutas           string
+	ConcentradorGPS           string
+	CategorizacionGPS         string
+	Geocercas                 string
+	Rutas                     string
+	PreEventosZonaRoja        string
+	PreEventosDetNoAutorizada string
 }
 
 type AppConfig struct {
@@ -57,9 +60,12 @@ func LoadConfig(envPath ...string) (*AppConfig, error) {
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		},
 		TableNames: TableNames{
-			ConcentradorGPS: getEnv("TABLE_CONCENTRADOR_GPS", "tablagps"),
-			Geocercas:       getEnv("TABLE_GEOCERCAS", "public.geocercas"),
-			Rutas:           getEnv("TABLE_RUTAS", "public.rutas"),
+			ConcentradorGPS:           getEnv("CONCENTRADOR_GPS", "tablagps"),
+			CategorizacionGPS:         getEnv("CATEGORIZACION_GPS", "tablagps"),
+			Geocercas:                 getEnv("GEOCERCAS", "public.geocercas"),
+			Rutas:                     getEnv("RUTAS", "public.rutas"),
+			PreEventosZonaRoja:        getEnv("PREEVENTOS_ZONA_ROJA", "public.ZonaRoja"),
+			PreEventosDetNoAutorizada: getEnv("PREEVENTOS_DET_NO_AUTORIZADA", "public.DetNoAutorizada"),
 		},
 	}
 	return cfg, nil
