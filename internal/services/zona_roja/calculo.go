@@ -4,7 +4,6 @@ import (
 	"log"
 	"sync"
 
-	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/database"
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/models"
 )
 
@@ -16,7 +15,7 @@ func ProcesarEventosZonaRoja() {
 
 	fechaDeProceso := "2025-05-12"
 
-	eventosParaInsertar, err := database.GetInterseccionesZonaRoja(fechaDeProceso)
+	eventosParaInsertar, err := GetInterseccionesZonaRoja(fechaDeProceso)
 	if err != nil {
 		log.Printf("Error al obtener intersecciones de zona roja: %v", err)
 		return
@@ -46,7 +45,7 @@ func ProcesarEventosZonaRoja() {
 
 			// 4. Dentro de la goroutine, procesamos cada evento del lote secuencialmente.
 			for _, eventoData := range loteAProcesar {
-				err := database.InsertarEventoZonaRoja(eventoData)
+				err := InsertarEventoZonaRoja(eventoData)
 				if err != nil {
 					log.Printf("[%s] FALLO al insertar evento para Camión %s: %v", tipoServicioActual, eventoData.Patente, err)
 				} else {
