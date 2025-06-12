@@ -6,7 +6,7 @@ import (
 
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/config"
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/database"
-	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/services/zona_roja_dos"
+	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/services/zona_roja_marcado"
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/pkg/runner"
 )
 
@@ -23,5 +23,5 @@ func main() {
 	defer database.DB.Close()
 
 	frecuencia := 30 * time.Second
-	runner.RunService("ZonaRojaDos", zona_roja_dos.ProcesarEventosZonaRoja2, frecuencia, true)
+	runner.RunService("ZonaRojaMarcado", zona_roja_marcado.ProcesarEventosZonaRoja2, frecuencia, true)
 }

@@ -6,6 +6,7 @@ import (
 
 type Evento struct {
 	ID              int64     `db:"id"`
+	IDConcentrador  int64     `db:"id_concentrador"`
 	Patente         string    `db:"patente"`
 	IDGeocerca      *string   `db:"id_geocerca"`
 	CoordenadasWKT  *string   `db:"coordenadas_wkt"`

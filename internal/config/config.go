@@ -20,7 +20,7 @@ type DBConfig struct {
 
 type TableNames struct {
 	ConcentradorGPS           string
-	CategorizacionGPS         string
+	TablaMarcado              string
 	Geocercas                 string
 	Rutas                     string
 	PreEventosZonaRoja        string
@@ -61,7 +61,7 @@ func LoadConfig(envPath ...string) (*AppConfig, error) {
 		},
 		TableNames: TableNames{
 			ConcentradorGPS:           getEnv("CONCENTRADOR_GPS", "tablagps"),
-			CategorizacionGPS:         getEnv("CATEGORIZACION_GPS", "tablagps"),
+			TablaMarcado:              getEnv("TablaMarcado", "TablaMarcado"),
 			Geocercas:                 getEnv("GEOCERCAS", "public.geocercas"),
 			Rutas:                     getEnv("RUTAS", "public.rutas"),
 			PreEventosZonaRoja:        getEnv("PREEVENTOS_ZONA_ROJA", "public.ZonaRoja"),
