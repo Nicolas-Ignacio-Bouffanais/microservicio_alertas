@@ -1,109 +1,74 @@
 package zona_roja_marcado
 
 import (
-	"encoding/json"
-	"fmt"
 	"log"
 	"sync"
 
-	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/database"
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/models"
 )
 
-const tipoServicioActual = "DET_ZONA_ROJA"
+const tipoServicioActual = "DET_ZONA_ROJA_MARCADO"
 const loteSize = 100
 
-func ProcesarEventosZonaRoja2() {
-	log.Println("Iniciando procesamiento del servicio Zona Roja...")
+func ProcesarEventos() {
+	log.Printf("[%s] Iniciando ciclo de procesamiento...", tipoServicioActual)
 
-	geocercas, err := database.GetZonasRojas()
+	eventosParaProcesar, err := GetInterseccionesNoMarcadas()
 	if err != nil {
-		log.Printf("Error al obtener geocercas: %v", err)
+		log.Printf("[%s] Error al obtener intersecciones no marcadas: %v", tipoServicioActual, err)
 		return
 	}
 
-	if len(geocercas) == 0 {
-		log.Println("No se encontraron geocercas para procesar.")
-	} else {
-		log.Printf("Geocercas obtenidas: %d", len(geocercas))
-		for i, geo := range geocercas {
-			if i < 3 {
-				geoJSON, err := json.MarshalIndent(geo, "", "  ")
-				if err != nil {
-					log.Printf("Error al convertir geocerca a JSON (ID: %d): %v", geo.IDGeocerca, err)
-				} else {
-					fmt.Printf("\n--- Geocerca %d ---\n%s\n", i+1, string(geoJSON))
-				}
-			} else {
-				break
-			}
-		}
-		if len(geocercas) > 3 {
-			fmt.Printf("... y %d geocercas más.\n", len(geocercas)-3)
-		}
-	}
-
-	camionesParaProcesar, err := database.GetCamionesDetenidos()
-	if err != nil {
-		log.Printf("Error al obtener camiones detenidos: %v", err)
+	if len(eventosParaProcesar) == 0 {
+		log.Printf("[%s] No se encontraron nuevos eventos para procesar.", tipoServicioActual)
 		return
 	}
 
-	if len(camionesParaProcesar) == 0 {
-		log.Println("No se encontraron camiones detenidos.")
-	}
-	log.Printf("[%d] camiones detenidos para procesar.", len(camionesParaProcesar))
+	log.Printf("[%s] Se encontraron [%d] nuevos eventos para procesar.", tipoServicioActual, len(eventosParaProcesar))
 
 	var wg sync.WaitGroup
-
-	for i := 0; i < len(camionesParaProcesar); i += loteSize {
-		fin := i + loteSize
-		if fin > len(camionesParaProcesar) {
-			fin = len(camionesParaProcesar)
-		}
-		lote := camionesParaProcesar[i:fin]
+	for i := 0; i < len(eventosParaProcesar); i += loteSize {
+		lote := eventosParaProcesar[i:min(i+loteSize, len(eventosParaProcesar))]
 
 		wg.Add(1)
-		// Lanzamos una goroutine para procesar cada lote de camiones
-		go func(loteCamiones []models.Camion) {
+		go func(loteAProcesar []models.Evento) {
 			defer wg.Done()
-			for _, camion := range loteCamiones {
-				// La lógica de marcar, comparar y generar eventos para un solo camión
-				procesarUnCamion2(camion, geocercas)
+			for _, evento := range loteAProcesar {
+				// PASO A: Bloquear el registro con el estado 'marcado'.
+				// Llama a la función correcta 'ActualizarEstadoZonaRoja'.
+				if err := ActualizarEstadoZonaRoja(evento.IDConcentrador, models.Marcado); err != nil {
+					log.Printf("[%s] FALLO al marcar como 'En Proceso' el registro %d: %v", tipoServicioActual, evento.IDConcentrador, err)
+					continue
+				}
+
+				// PASO B: Insertar el pre-evento.
+				if err := InsertarPreEvento(evento); err != nil {
+					log.Printf("[%s] FALLO al insertar pre-evento para patente %s (ID Concentrador: %d): %v", tipoServicioActual, evento.Patente, evento.IDConcentrador, err)
+
+					// Si falla, se marca como 'error' para no reintentar indefinidamente.
+					if errMarcar := ActualizarEstadoZonaRoja(evento.IDConcentrador, models.Error); errMarcar != nil {
+						log.Printf("[%s] FALLO CRÍTICO al intentar marcar como 'Error' el registro %d: %v", tipoServicioActual, evento.IDConcentrador, errMarcar)
+					}
+					continue
+				}
+
+				// PASO C: Marcar como 'procesado' si todo fue exitoso.
+				if err := ActualizarEstadoZonaRoja(evento.IDConcentrador, models.Procesado); err != nil {
+					log.Printf("[%s] FALLO al marcar como 'Procesado' el registro %d: %v", tipoServicioActual, evento.IDConcentrador, err)
+				} else {
+					log.Printf("[%s] ¡EVENTO PROCESADO! Patente: %s, ID Concentrador: %d", tipoServicioActual, evento.Patente, evento.IDConcentrador)
+				}
 			}
 		}(lote)
 	}
 
-	wg.Wait() // Esperamos a que todas las goroutines de lotes terminen
+	wg.Wait()
 	log.Printf("[%s] Ciclo de procesamiento finalizado.", tipoServicioActual)
 }
 
-func procesarUnCamion2(camion models.Camion, geocercas []models.Geocerca) {
-	// A FUTURO: Aquí es donde se reincorporaría la lógica de marcado
-
-	// 2. Verificar intersección
-	if camion.CoordenadasWKT == nil {
-		return
+func min(a, b int) int {
+	if a < b {
+		return a
 	}
-
-	intersecta, idGeo, errInt := database.CamionIntersectaAlgunaGeocerca(*camion.CoordenadasWKT, geocercas) //
-	if errInt != nil {
-		log.Printf("[%s] Error de intersección para camión ID %d: %v", tipoServicioActual, camion.Id, errInt)
-		return
-	}
-
-	if intersecta { // FechaHora es la fecha en la que se termino de calcular y se inserto en la tabla de preeventos
-		log.Printf("¡INTERSECCIÓN ENCONTRADA! Camión %s en Geocerca ID %s. Insertando evento...", camion.Patente, idGeo)
-		e := models.Evento{
-			Patente:        camion.Patente,
-			IDGeocerca:     &idGeo,
-			CoordenadasWKT: camion.CoordenadasWKT,
-			Velocidad:      camion.Velocidad,
-			Orientacion:    camion.Orientacion,
-		}
-		err := database.InsertarEventoZonaRoja(e) //
-		if err != nil {
-			log.Printf("[%s] FALLO al insertar evento para Camión %s: %v", tipoServicioActual, camion.Patente, err)
-		}
-	}
+	return b
 }

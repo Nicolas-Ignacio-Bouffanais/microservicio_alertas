@@ -2,19 +2,21 @@ package zona_roja_marcado
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/database"
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/models"
 )
 
-// GetInterseccionesNoMarcadas busca camiones detenidos en zonas rojas que aún no han sido procesados.
+// GetInterseccionesNoMarcadas busca camiones en zonas rojas cuyo estado en la columna 'zona_roja' es 'no_procesado'.
 func GetInterseccionesNoMarcadas() ([]models.Evento, error) {
 	if database.Cfg == nil {
 		return nil, fmt.Errorf("la configuración no ha sido inicializada")
 	}
+	// La consulta ahora busca explícitamente en la columna 'zona_roja'
 	query := fmt.Sprintf(`
 		SELECT
-			c.id AS id_concentrador, -- Se necesita el ID para marcarlo después
+			c.id AS id_concentrador,
 			c.patente,
 			g.id::text AS id_geocerca,
 			ST_AsText(c.coordenadas) AS coordenadas_wkt,
@@ -27,16 +29,16 @@ func GetInterseccionesNoMarcadas() ([]models.Evento, error) {
 		JOIN
 			%s g ON ST_Intersects(c.coordenadas, g.geometria)
 		LEFT JOIN
-			%s cat ON c.id = cat.id_concentrador
+			%s tm ON c.id = tm.id_concentrador
 		WHERE
 			c.velocidad = 0
 			AND g.tipo_geocerca = 'Zona roja'
-			-- La condición clave: procesar solo si no está marcado o la marca es explícitamente falsa.
-			AND (cat.id_concentrador IS NULL OR cat.zona_roja = false);
+			AND (tm.id_concentrador IS NULL OR tm.zona_roja = '%s');
 		`,
 		database.Cfg.TableNames.ConcentradorGPS,
 		database.Cfg.TableNames.Geocercas,
 		database.Cfg.TableNames.TablaMarcado,
+		models.NoProcesado,
 	)
 
 	rows, err := database.DB.Query(query)
@@ -48,6 +50,7 @@ func GetInterseccionesNoMarcadas() ([]models.Evento, error) {
 	var eventosDetectados []models.Evento
 	for rows.Next() {
 		var e models.Evento
+		e.FechaHoraCalc = time.Now()
 		err := rows.Scan(
 			&e.IDConcentrador,
 			&e.Patente,
@@ -66,6 +69,28 @@ func GetInterseccionesNoMarcadas() ([]models.Evento, error) {
 	return eventosDetectados, rows.Err()
 }
 
+// ActualizarEstadoZonaRoja actualiza el estado EN LA COLUMNA 'zona_roja' de la tabla de marcado.
+func ActualizarEstadoZonaRoja(idConcentrador int64, estado models.EstadoProcesamiento) error {
+	// Esta consulta inserta o actualiza el estado en la columna específica 'zona_roja'.
+	// NO hace referencia a una columna 'estado'.
+	query := fmt.Sprintf(`
+		INSERT INTO %s (id_concentrador, zona_roja)
+		VALUES ($1, $2)
+		ON CONFLICT (id_concentrador) DO UPDATE
+		SET zona_roja = EXCLUDED.zona_roja,
+			fecha_marcado = NOW();
+		`,
+		database.Cfg.TableNames.TablaMarcado,
+	)
+
+	_, err := database.DB.Exec(query, idConcentrador, estado)
+	if err != nil {
+		// Este es el mensaje de error que estabas viendo, pero ahora la consulta es correcta.
+		return fmt.Errorf("error al marcar estado de zona roja para id_concentrador %d: %w", idConcentrador, err)
+	}
+	return nil
+}
+
 func InsertarPreEvento(e models.Evento) error {
 	query := fmt.Sprintf(`
         INSERT INTO %s (patente, id_geocerca, coordenadas, velocidad, orientacion, fecha_hora_gps, fecha_hora_insert, fecha_hora_calc)
@@ -75,24 +100,6 @@ func InsertarPreEvento(e models.Evento) error {
 	_, err := database.DB.Exec(query, e.Patente, e.IDGeocerca, e.CoordenadasWKT, e.Velocidad, e.Orientacion, e.FechaHoraGps, e.FechaHoraInsert)
 	if err != nil {
 		return fmt.Errorf("error al insertar pre-evento de zona roja: %w", err)
-	}
-	return nil
-}
-
-func MarcarComoProcesado(idConcentrador int64) error {
-	query := fmt.Sprintf(`
-		INSERT INTO %s (id_concentrador, zona_roja, fecha_marcado)
-		VALUES ($1, true, NOW())
-		ON CONFLICT (id_concentrador) DO UPDATE
-		SET zona_roja = EXCLUDED.zona_roja,
-			fecha_marcado = EXCLUDED.fecha_marcado;
-		`,
-		database.Cfg.TableNames.TablaMarcado,
-	)
-
-	_, err := database.DB.Exec(query, idConcentrador)
-	if err != nil {
-		return fmt.Errorf("error al marcar como procesado para id_concentrador %d: %w", idConcentrador, err)
 	}
 	return nil
 }

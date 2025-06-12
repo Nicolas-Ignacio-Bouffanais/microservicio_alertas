@@ -1,3 +1,5 @@
+// main.go
+
 package main
 
 import (
@@ -23,5 +25,5 @@ func main() {
 	defer database.DB.Close()
 
 	frecuencia := 30 * time.Second
-	runner.RunService("ZonaRojaMarcado", zona_roja_marcado.ProcesarEventosZonaRoja2, frecuencia, true)
+	runner.RunService("ZonaRojaMarcado", zona_roja_marcado.ProcesarEventos, frecuencia, true)
 }
