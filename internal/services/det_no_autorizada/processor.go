@@ -10,7 +10,6 @@ import (
 const tipoServicioActual = "DETENCION_ILEGAL"
 const loteSize = 100
 
-// ProcesarEventos orquesta el ciclo de detección de detenciones ilegales.
 func ProcesarEventos() {
 	log.Printf("[%s] Iniciando ciclo de procesamiento...", tipoServicioActual)
 
