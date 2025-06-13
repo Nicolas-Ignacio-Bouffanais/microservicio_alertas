@@ -34,25 +34,14 @@ func ProcesarEventos() {
 		go func(loteAProcesar []models.Evento) {
 			defer wg.Done()
 			for _, evento := range loteAProcesar {
-				// PASO A: Bloquear el registro con el estado 'marcado'.
-				// Llama a la función correcta 'ActualizarEstadoZonaRoja'.
-				if err := ActualizarEstadoZonaRoja(evento.IDConcentrador, models.Marcado); err != nil {
-					log.Printf("[%s] FALLO al marcar como 'En Proceso' el registro %d: %v", tipoServicioActual, evento.IDConcentrador, err)
-					continue
-				}
-
-				// PASO B: Insertar el pre-evento.
 				if err := InsertarPreEvento(evento); err != nil {
-					log.Printf("[%s] FALLO al insertar pre-evento para patente %s (ID Concentrador: %d): %v", tipoServicioActual, evento.Patente, evento.IDConcentrador, err)
+					log.Printf("[%s] FALLO al insertar pre-evento para ID %d: %v. Marcando como ERROR.", tipoServicioActual, evento.IDConcentrador, err)
 
-					// Si falla, se marca como 'error' para no reintentar indefinidamente.
 					if errMarcar := ActualizarEstadoZonaRoja(evento.IDConcentrador, models.Error); errMarcar != nil {
 						log.Printf("[%s] FALLO CRÍTICO al intentar marcar como 'Error' el registro %d: %v", tipoServicioActual, evento.IDConcentrador, errMarcar)
 					}
 					continue
 				}
-
-				// PASO C: Marcar como 'procesado' si todo fue exitoso.
 				if err := ActualizarEstadoZonaRoja(evento.IDConcentrador, models.Procesado); err != nil {
 					log.Printf("[%s] FALLO al marcar como 'Procesado' el registro %d: %v", tipoServicioActual, evento.IDConcentrador, err)
 				} else {

@@ -33,11 +33,11 @@ microservicio_alertas/
 │   │   
 │   ├── services/          # Lógica de negocio específica para cada tipo de alerta
 │   │   ├── exceso_velocidad/
-│   │   │   ├── calculo.go
+│   │   │   ├── processor.go    #archivo de calculo
 │   │   ├── zona_roja/
-│   │   │   ├── calculo.go
+│   │   │   ├── processor.go
 │   │   ├── zona_roja_geohash/
-│   │   │   ├── calculo.go
+│   │   │   ├── processor.go
 
 ├── README.md
 ├── docker-compose.yml     # Para desarrollo local, levantar todos los servicios y BD

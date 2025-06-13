@@ -33,7 +33,8 @@ func GetInterseccionesZonaRoja(fecha string) ([]models.Evento, error) {
 		WHERE
 			c.velocidad = 0
 			AND g.tipo_geocerca = 'Zona roja'
-			AND DATE(c.fecha_hora_gps) = $1;`,
+			AND DATE(c.fecha_hora_gps) = $1
+		LIMIT 10;`,
 		database.Cfg.TableNames.ConcentradorGPS,
 		database.Cfg.TableNames.Geocercas,
 	)
