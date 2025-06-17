@@ -23,9 +23,11 @@ type TableNames struct {
 	TablaMarcado              string
 	Geocercas                 string
 	Rutas                     string
+	Vehiculos                 string
 	PreEventosZonaRoja        string
 	PreEventosDetNoAutorizada string
 	PreEventosSobreestadia    string
+	PreEventosExVelocidad     string
 }
 
 type AppConfig struct {
@@ -65,9 +67,11 @@ func LoadConfig(envPath ...string) (*AppConfig, error) {
 			TablaMarcado:              getEnv("TablaMarcado", "TablaMarcado"),
 			Geocercas:                 getEnv("GEOCERCAS", "public.geocercas"),
 			Rutas:                     getEnv("RUTAS", "public.rutas"),
+			Vehiculos:                 getEnv("VEHICULOS", "vehiculos"),
 			PreEventosZonaRoja:        getEnv("ZONA_ROJA", "public.ZonaRoja"),
 			PreEventosDetNoAutorizada: getEnv("DET_NO_AUTORIZADA", "public.DetNoAutorizada"),
 			PreEventosSobreestadia:    getEnv("SOBREESTADIA", "TablaSobreestadia"),
+			PreEventosExVelocidad:     getEnv("EX_VELOCIDAD", "ex_velocidad"),
 		},
 	}
 	return cfg, nil

@@ -56,7 +56,7 @@ func GetInterseccionesNoMarcadas() ([]models.Evento, error) {
 			&e.Patente,
 			&e.IDGeocerca,
 			&e.CoordenadasWKT,
-			&e.Velocidad,
+			&e.VelocidadRegistrada,
 			&e.Orientacion,
 			&e.FechaHoraGps,
 			&e.FechaHoraRegistro,
@@ -94,7 +94,7 @@ func InsertarPreEvento(e models.Evento) error {
         VALUES ($1, $2, ST_GeomFromText($3, 4326), $4, $5, $6, $7, $8, NOW());`,
 		database.Cfg.TableNames.PreEventosZonaRoja)
 
-	_, err := database.DB.Exec(query, e.Patente, e.IDGeocerca, e.CoordenadasWKT, e.Velocidad, e.Orientacion, e.FechaHoraGps, e.FechaHoraRegistro, e.FechaHoraInsert)
+	_, err := database.DB.Exec(query, e.Patente, e.IDGeocerca, e.CoordenadasWKT, e.VelocidadRegistrada, e.Orientacion, e.FechaHoraGps, e.FechaHoraRegistro, e.FechaHoraInsert)
 	if err != nil {
 		return fmt.Errorf("error al insertar pre-evento de zona roja: %w", err)
 	}

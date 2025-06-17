@@ -59,7 +59,7 @@ func GetDetencionesIlegales() ([]models.Evento, error) {
 			&e.IDConcentrador,
 			&e.Patente,
 			&e.CoordenadasWKT,
-			&e.Velocidad,
+			&e.VelocidadRegistrada,
 			&e.Orientacion,
 			&e.FechaHoraGps,
 			&e.FechaHoraRegistro,
@@ -94,6 +94,6 @@ func InsertarPreEventoDetNoAut(e models.Evento) error {
         VALUES ($1, $2, ST_GeomFromText($3, 4326), $4, $5, $6, $7, NOW(), $8);`,
 		database.Cfg.TableNames.PreEventosDetNoAutorizada)
 
-	_, err := database.DB.Exec(query, e.Patente, e.IDGeocerca, e.CoordenadasWKT, e.Velocidad, e.Orientacion, e.FechaHoraGps, e.FechaHoraInsert, e.FechaHoraRegistro)
+	_, err := database.DB.Exec(query, e.Patente, e.IDGeocerca, e.CoordenadasWKT, e.VelocidadRegistrada, e.Orientacion, e.FechaHoraGps, e.FechaHoraInsert, e.FechaHoraRegistro)
 	return err
 }
