@@ -8,7 +8,7 @@ import (
 
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/config"
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/database"
-	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/services/det_no_autorizada"
+	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/services/ex_velocidad"
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/pkg/listener"
 )
 
@@ -24,7 +24,7 @@ func main() {
 	}
 	defer database.Pool.Close()
 
-	go listener.Iniciar("gps_batch_listo", det_no_autorizada.ProcesarEventos)
+	go listener.Iniciar("gps_batch_listo", ex_velocidad.ProcesarBatch)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

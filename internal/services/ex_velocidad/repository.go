@@ -1,6 +1,7 @@
 package ex_velocidad
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/models"
 )
 
-func GetExVelocidad(batchID string) ([]models.Evento, error) {
+func GetExVelocidad(batchID string) ([]models.PreEventoExVelocidad, error) {
 	if database.Cfg == nil {
 		return nil, fmt.Errorf("la configuración no ha sido inicializada")
 	}
@@ -66,17 +67,18 @@ func GetExVelocidad(batchID string) ([]models.Evento, error) {
 			ep.id_concentrador,
 			ep.patente,
 			ep.fecha_hora_gps,
-			ep.orientacion,
-			ep.id_geocerca_control,
 			ep.fecha_hora_registro,
 			ep.fecha_hora_insert,
+			ST_AsText(ep.coordenadas),
+			ep.orientacion,
 			ep.velocidad,
 			ep.limite_final,
 			(ep.velocidad - ep.limite_final),
 			CASE 
 				WHEN ep.porcentaje_exceso > 6 THEN 'GRAVE'
 				ELSE 'LEVE'
-			END
+			END AS criticidad,
+			ep.id_geocerca_control
 		FROM
 			eventos_potenciales ep
 		WHERE
@@ -88,15 +90,15 @@ func GetExVelocidad(batchID string) ([]models.Evento, error) {
 		database.Cfg.TableNames.Geocercas,
 	)
 
-	rows, err := database.DB.Query(query, batchID)
+	rows, err := database.Pool.Query(context.Background(), query, batchID)
 	if err != nil {
 		return nil, fmt.Errorf("error al ejecutar la consulta de exceso de velocidad: %w", err)
 	}
 	defer rows.Close()
 
-	var eventosDetectados []models.Evento
+	var eventosDetectados []models.PreEventoExVelocidad
 	for rows.Next() {
-		var e models.Evento
+		var e models.PreEventoExVelocidad
 		e.FechaHoraCalc = time.Now()
 		e.IDGeocerca = nil
 		err := rows.Scan(
@@ -133,14 +135,14 @@ func ActualizarEstadoExVelocidad(ids []int64, estado models.EstadoProcesamiento)
 			ex_velocidad = EXCLUDED.ex_velocidad;
 	`, database.Cfg.TableNames.TablaMarcado)
 
-	_, err := database.DB.Exec(query, estado, ids)
+	_, err := database.Pool.Exec(context.Background(), query, estado, ids)
 	if err != nil {
 		return fmt.Errorf("error al actualizar estado de exceso de velocidad para %d IDs: %w", len(ids), err)
 	}
 	return nil
 }
 
-func InsertarPreEventoExVelocidad(e models.Evento) error {
+func InsertarPreEventoExVelocidad(e models.PreEventoExVelocidad) error {
 	query := fmt.Sprintf(`
         INSERT INTO %s (
             id_concentrador, patente, fecha_hora_gps, id_geocerca, velocidad_registrada,
@@ -148,7 +150,7 @@ func InsertarPreEventoExVelocidad(e models.Evento) error {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     `, database.Cfg.TableNames.PreEventosExVelocidad)
 
-	_, err := database.DB.Exec(
+	_, err := database.Pool.Exec(context.Background(),
 		query,
 		e.IDConcentrador, e.Patente, e.FechaHoraGps, e.IDGeocerca, e.VelocidadRegistrada,
 		e.VelocidadLimite, e.ExcesoRegistrado, e.Criticidad, e.FechaHoraRegistro, e.FechaHoraInsert,

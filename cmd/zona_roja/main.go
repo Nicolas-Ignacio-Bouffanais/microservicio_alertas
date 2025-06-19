@@ -8,7 +8,7 @@ import (
 
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/config"
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/database"
-	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/services/det_no_autorizada"
+	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/services/zona_roja" // Importamos el nuevo servicio
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/pkg/listener"
 )
 
@@ -24,12 +24,14 @@ func main() {
 	}
 	defer database.Pool.Close()
 
-	go listener.Iniciar("gps_batch_listo", det_no_autorizada.ProcesarEventos)
+	// Iniciar el listener para el canal "gps_batch_listo" y asignarle el procesador de Zona Roja.
+	go listener.Iniciar("gps_batch_listo", zona_roja.ProcesarBatch)
 
+	// Esperar una señal de interrupción para un apagado limpio.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	<-ctx.Done()
 
-	log.Println("Señal de apagado recibida. Cerrando conexiones...")
+	log.Println("Señal de apagado recibida. Cerrando servicio de Zona Roja...")
 }

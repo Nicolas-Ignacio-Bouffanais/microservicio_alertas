@@ -1,6 +1,7 @@
-package zona_roja_marcado
+package zona_roja
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/models"
 )
 
-func GetInterseccionesNoMarcadas() ([]models.Evento, error) {
+func GetZonaRoja(batchID string) ([]models.PreEventoZonaRoja, error) {
 	if database.Cfg == nil {
 		return nil, fmt.Errorf("la configuración no ha sido inicializada")
 	}
@@ -41,22 +42,21 @@ func GetInterseccionesNoMarcadas() ([]models.Evento, error) {
 		models.NoProcesado,
 	)
 
-	rows, err := database.DB.Query(query)
+	rows, err := database.Pool.Query(context.Background(), query, batchID)
 	if err != nil {
 		return nil, fmt.Errorf("error al obtener intersecciones no marcadas: %w", err)
 	}
 	defer rows.Close()
 
-	var eventosDetectados []models.Evento
+	var eventosDetectados []models.PreEventoZonaRoja
 	for rows.Next() {
-		var e models.Evento
+		var e models.PreEventoZonaRoja
 		e.FechaHoraCalc = time.Now()
 		err := rows.Scan(
 			&e.IDConcentrador,
 			&e.Patente,
 			&e.IDGeocerca,
 			&e.CoordenadasWKT,
-			&e.VelocidadRegistrada,
 			&e.Orientacion,
 			&e.FechaHoraGps,
 			&e.FechaHoraRegistro,
@@ -70,7 +70,7 @@ func GetInterseccionesNoMarcadas() ([]models.Evento, error) {
 	return eventosDetectados, rows.Err()
 }
 
-func ActualizarEstadoZonaRoja(idConcentrador int64, estado models.EstadoProcesamiento) error {
+func ActualizarEstadoZonaRoja(idConcentrador []int64, estado models.EstadoProcesamiento) error {
 	query := fmt.Sprintf(`
 		INSERT INTO %s (id_concentrador, zona_roja)
 		VALUES ($1, $2)
@@ -81,20 +81,20 @@ func ActualizarEstadoZonaRoja(idConcentrador int64, estado models.EstadoProcesam
 		database.Cfg.TableNames.TablaMarcado,
 	)
 
-	_, err := database.DB.Exec(query, idConcentrador, estado)
+	_, err := database.Pool.Exec(context.Background(), query, idConcentrador, estado)
 	if err != nil {
 		return fmt.Errorf("error al marcar estado de zona roja para id_concentrador %d: %w", idConcentrador, err)
 	}
 	return nil
 }
 
-func InsertarPreEvento(e models.Evento) error {
+func InsertarPreEventoZonaRoja(e models.PreEventoZonaRoja) error {
 	query := fmt.Sprintf(`
-        INSERT INTO %s (patente, id_geocerca, coordenadas, velocidad, orientacion, fecha_hora_gps, fecha_hora_registro, fecha_hora_insert, fecha_hora_calc)
+        INSERT INTO %s (patente, id_geocerca, coordenadas, orientacion, fecha_hora_gps, fecha_hora_registro, fecha_hora_insert, fecha_hora_calc)
         VALUES ($1, $2, ST_GeomFromText($3, 4326), $4, $5, $6, $7, $8, NOW());`,
 		database.Cfg.TableNames.PreEventosZonaRoja)
 
-	_, err := database.DB.Exec(query, e.Patente, e.IDGeocerca, e.CoordenadasWKT, e.VelocidadRegistrada, e.Orientacion, e.FechaHoraGps, e.FechaHoraRegistro, e.FechaHoraInsert)
+	_, err := database.Pool.Exec(context.Background(), query, e.Patente, e.IDGeocerca, e.CoordenadasWKT, e.Orientacion, e.FechaHoraGps, e.FechaHoraRegistro, e.FechaHoraInsert)
 	if err != nil {
 		return fmt.Errorf("error al insertar pre-evento de zona roja: %w", err)
 	}

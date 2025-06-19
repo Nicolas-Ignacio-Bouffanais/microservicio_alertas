@@ -1,6 +1,7 @@
 package det_no_autorizada
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/Nicolas-Ignacio-Bouffanais/microservicio_alertas/internal/models"
 )
 
-func GetDetencionesIlegales() ([]models.Evento, error) {
+func GetDetencionesIlegales(batchID string) ([]models.PreEventoDetNoAutorizada, error) {
 	if database.Cfg == nil {
 		return nil, fmt.Errorf("la configuración no ha sido inicializada")
 	}
@@ -44,22 +45,20 @@ func GetDetencionesIlegales() ([]models.Evento, error) {
 		models.NoProcesado,
 		database.Cfg.TableNames.Geocercas)
 
-	rows, err := database.DB.Query(query)
+	rows, err := database.Pool.Query(context.Background(), query, batchID)
 	if err != nil {
 		return nil, fmt.Errorf("error al obtener detenciones ilegales: %w", err)
 	}
 	defer rows.Close()
 
-	var eventosDetectados []models.Evento
+	var eventosDetectados []models.PreEventoDetNoAutorizada
 	for rows.Next() {
-		var e models.Evento
+		var e models.PreEventoDetNoAutorizada
 		e.FechaHoraCalc = time.Now()
-		e.IDGeocerca = nil
 		err := rows.Scan(
 			&e.IDConcentrador,
 			&e.Patente,
 			&e.CoordenadasWKT,
-			&e.VelocidadRegistrada,
 			&e.Orientacion,
 			&e.FechaHoraGps,
 			&e.FechaHoraRegistro,
@@ -73,7 +72,10 @@ func GetDetencionesIlegales() ([]models.Evento, error) {
 	return eventosDetectados, rows.Err()
 }
 
-func ActualizarEstadoDetNoAut(idConcentrador int64, estado models.EstadoProcesamiento) error {
+func ActualizarEstadoDetNoAut(ids []int64, estado models.EstadoProcesamiento) error {
+	if len(ids) == 0 {
+		return nil
+	}
 	query := fmt.Sprintf(`
 		INSERT INTO %s (id_concentrador, det_no_autorizada)
 		VALUES ($1, $2)
@@ -83,17 +85,17 @@ func ActualizarEstadoDetNoAut(idConcentrador int64, estado models.EstadoProcesam
 		`,
 		database.Cfg.TableNames.TablaMarcado,
 	)
-	_, err := database.DB.Exec(query, idConcentrador, estado)
+	_, err := database.Pool.Exec(context.Background(), query, estado, ids)
 	return err
 }
 
 // CORREGIDO: Se estandarizó el nombre de la función.
-func InsertarPreEventoDetNoAut(e models.Evento) error {
+func InsertarPreEventoDetNoAut(e models.PreEventoDetNoAutorizada) error {
 	query := fmt.Sprintf(`
-        INSERT INTO %s (patente, id_geocerca, coordenadas, velocidad, orientacion, fecha_hora_gps, fecha_hora_insert, fecha_hora_calc, fecha_hora_registro)
-        VALUES ($1, $2, ST_GeomFromText($3, 4326), $4, $5, $6, $7, NOW(), $8);`,
+        INSERT INTO %s (patente, id_geocerca, coordenadas, orientacion, fecha_hora_gps, fecha_hora_insert, fecha_hora_calc, fecha_hora_registro)
+        VALUES ($1, $2, ST_GeomFromText($3, 4326), $4, $5, $6, NOW(), $7);`,
 		database.Cfg.TableNames.PreEventosDetNoAutorizada)
 
-	_, err := database.DB.Exec(query, e.Patente, e.IDGeocerca, e.CoordenadasWKT, e.VelocidadRegistrada, e.Orientacion, e.FechaHoraGps, e.FechaHoraInsert, e.FechaHoraRegistro)
+	_, err := database.Pool.Exec(context.Background(), query, e.Patente, e.CoordenadasWKT, e.Orientacion, e.FechaHoraGps, e.FechaHoraInsert, e.FechaHoraRegistro)
 	return err
 }

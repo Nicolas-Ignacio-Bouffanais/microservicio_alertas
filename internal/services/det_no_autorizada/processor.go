@@ -8,59 +8,60 @@ import (
 )
 
 const tipoServicioActual = "DETENCION_ILEGAL"
-const loteSize = 100
 
-func ProcesarEventos() {
-	log.Printf("[%s] Iniciando ciclo de procesamiento...", tipoServicioActual)
+func ProcesarEventos(batchID string) {
+	log.Printf("[%s] Notificación recibida. Iniciando procesamiento para batch_id: %s", tipoServicioActual, batchID)
 
-	eventosParaProcesar, err := GetDetencionesIlegales()
+	eventosParaProcesar, err := GetDetencionesIlegales(batchID)
 	if err != nil {
-		log.Printf("[%s] ERROR FATAL al obtener detenciones: %v", tipoServicioActual, err)
+		log.Printf("[%s] Error al obtener eventos de detenciones para batch_id %s: %v", tipoServicioActual, batchID, err)
 		return
 	}
 
 	if len(eventosParaProcesar) == 0 {
-		log.Printf("[%s] No se encontraron nuevos eventos para procesar.", tipoServicioActual)
+		log.Printf("[%s] No se encontraron nuevos eventos para procesar en el batch_id %s.", tipoServicioActual, batchID)
 		return
 	}
 
-	log.Printf("[%s] Se encontraron [%d] nuevos eventos para procesar.", tipoServicioActual, len(eventosParaProcesar))
+	log.Printf("[%s] Se encontraron [%d] nuevos eventos para procesar en el batch_id %s.", tipoServicioActual, len(eventosParaProcesar), batchID)
 
+	// 2. Marcar todos los eventos encontrados como "marcado" antes de procesarlos.
+	ids := make([]int64, len(eventosParaProcesar))
+	for i, e := range eventosParaProcesar {
+		ids[i] = e.IDConcentrador
+	}
+	if err := ActualizarEstadoDetNoAut(ids, models.Marcado); err != nil {
+		log.Printf("[%s] FALLO CRÍTICO al marcar lote como 'marcado' para batch_id %s: %v. Abortando ciclo.", tipoServicioActual, batchID, err)
+		return
+	}
+	log.Printf("[%s] Lote de %d eventos marcado como 'marcado'. Iniciando procesamiento concurrente...", tipoServicioActual, len(eventosParaProcesar))
+
+	// 3. Procesar cada evento de forma concurrente.
 	var wg sync.WaitGroup
-	for i := 0; i < len(eventosParaProcesar); i += loteSize {
-		lote := eventosParaProcesar[i:min(i+loteSize, len(eventosParaProcesar))]
-
+	for _, evento := range eventosParaProcesar {
 		wg.Add(1)
-		go func(loteAProcesar []models.Evento) {
+		go func(e models.PreEventoDetNoAutorizada) {
 			defer wg.Done()
-			for _, evento := range loteAProcesar {
-				// PASO 1: Intentar insertar el pre-evento.
-				if err := InsertarPreEventoDetNoAut(evento); err != nil {
-					log.Printf("[%s] FALLO al insertar pre-evento para ID %d: %v. Marcando como ERROR.", tipoServicioActual, evento.IDConcentrador, err)
 
-					if errMarcar := ActualizarEstadoDetNoAut(evento.IDConcentrador, models.Error); errMarcar != nil {
-						log.Printf("[%s] FALLO CRÍTICO al intentar marcar como 'Error' el registro %d: %v", tipoServicioActual, evento.IDConcentrador, errMarcar)
-					}
-					continue
+			// Insertar el pre-evento en la tabla de resultados.
+			if err := InsertarPreEventoDetNoAut(e); err != nil {
+				log.Printf("[%s] FALLO al insertar pre-evento para ID %d: %v.", tipoServicioActual, e.IDConcentrador, err)
+				// Si falla la inserción, marcar el registro como "Error".
+				if errMarcar := ActualizarEstadoDetNoAut([]int64{e.IDConcentrador}, models.Error); errMarcar != nil {
+					log.Printf("[%s] FALLO CRÍTICO al intentar marcar como 'Error' el registro %d: %v", tipoServicioActual, e.IDConcentrador, errMarcar)
 				}
-
-				// PASO 2: Si el paso anterior fue exitoso, marcar como PROCESADO.
-				if err := ActualizarEstadoDetNoAut(evento.IDConcentrador, models.Procesado); err != nil {
-					log.Printf("[%s] FALLO al marcar como 'Procesado' el registro %d: %v", tipoServicioActual, evento.IDConcentrador, err)
+			} else {
+				// Si la inserción es exitosa, marcar como "Procesado".
+				if errMarcar := ActualizarEstadoDetNoAut([]int64{e.IDConcentrador}, models.Procesado); errMarcar != nil {
+					log.Printf("[%s] FALLO al marcar como 'Procesado' el registro %d: %v", tipoServicioActual, e.IDConcentrador, errMarcar)
 				} else {
-					log.Printf("[%s] ¡EVENTO PROCESADO! Patente: %s, ID Concentrador: %d", tipoServicioActual, evento.Patente, evento.IDConcentrador)
+					log.Printf("[%s] EVENTO PROCESADO: Patente %s, Criticidad %s",
+						tipoServicioActual, e.Patente, e.Criticidad)
 				}
 			}
-		}(lote)
+		}(evento)
 	}
 
 	wg.Wait()
-	log.Printf("[%s] Ciclo de procesamiento finalizado.", tipoServicioActual)
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
+	log.Printf("[%s] Procesamiento finalizado para el batch_id: %s", tipoServicioActual, batchID)
 }
